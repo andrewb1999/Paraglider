@@ -17,8 +17,12 @@
 #include "rc_balance_defs.h"
 
 //Paraglider Constants
-#define ANGLE_OFFSET -0.29
-#define kPTilt 0.5
+#define ANGLE_OFFSET 0.042
+#define kPRoll 0.1
+#define kIRoll 0.000000000000000000000001 //0.01
+//#define kDRoll 00 //2300
+
+double kDRoll = 1230;
 
 /**
  * ARMED or DISARMED to indicate if the controller is running
@@ -54,7 +58,8 @@ typedef struct core_state_t{
 typedef enum m_input_mode_t{
 	NONE,
 	DSM,
-	STDIN
+	STDIN,
+	TUNE
 } m_input_mode_t;
 
 
@@ -80,6 +85,7 @@ m_input_mode_t m_input_mode = NONE;
 
 static int running;
 int first_crtlc = 1;
+int first_balance_run = 1;
 
 // interrupt handler to catch ctrl-c
 static void __signal_handler(__attribute__ ((unused)) int dummy)
@@ -120,6 +126,8 @@ int main(int argc, char *argv[])
 				m_input_mode = DSM;
 			} else if(!strcmp("stdin", optarg)) {
 				m_input_mode = STDIN;
+			} else if(!strcmp("tune", optarg)) {
+				m_input_mode = TUNE;
 			} else if(!strcmp("none", optarg)){
 				m_input_mode = NONE;
 			} else {
@@ -353,8 +361,19 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
 
 		// if dsm is active, update the setpoint rates
 		switch(m_input_mode){
-		case NONE:
-			continue;
+		case TUNE:
+
+			if ((ch = getchar()) != EOF){
+				if(ch == '['){
+					kDRoll += 10;
+				} else if(ch == ';'){
+					kDRoll -= 10;
+				}
+			}
+
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -371,30 +390,62 @@ static void __balance_controller(void)
 {
 	static int inner_saturation_counter = 0;
 	double dutyL, dutyR;
-	double roll_adjusted;
+	double error_roll;
+	double prev_error_roll;
+	double prev_time;
+	double time_diff;
+	double p;
+	double i;
+	double d;
+
 	/******************************************************************
 	* STATE_ESTIMATION
 	* read sensors and compute the state when either ARMED or DISARMED
 	******************************************************************/
 	// angle theta is positive in the direction of forward tip around X axis
-	cstate.roll = mpu_data.dmp_TaitBryan[TB_PITCH_X];
-	roll_adjusted = cstate.roll - setpoint.roll; // + ANGLE_OFFSET;
-	printf("Old: %lf \n", roll_adjusted);
-	roll_adjusted = ((double) ((int) (roll_adjusted*1000)) )/1000.0;
-	printf("New: %lf \n", roll_adjusted);
+	cstate.roll = mpu_data.dmp_TaitBryan[TB_PITCH_X] - ANGLE_OFFSET;
+	error_roll = cstate.roll - setpoint.roll; //- ANGLE_OFFSET;
+	//roll_adjusted = ((double) ((int) (roll_adjusted*1000)) )/1000.0;
+
+	if (first_balance_run) {
+		prev_error_roll = error_roll;
+		prev_time = 0;
+		i = 0;
+		first_balance_run = 0;
+	}
 
 	if (running) {
 		// if (roll_adjusted <= 1 && roll_adjusted >= -1) {
-		// 	rc_servo_send_pulse_normalized(1, -roll_adjusted);
+		// 	rc_servo_send_pulse_normalized(1, roll_adjusted);
 		// } else if (roll_adjusted > 1){
-		// 	rc_servo_send_pulse_normalized(1, -1);
-		// } else {
 		// 	rc_servo_send_pulse_normalized(1, 1);
+		// } else {
+		// 	rc_servo_send_pulse_normalized(1, -1);
 		// }
-		if (roll_adjusted > 0.2 && cstate.servo_pos < 1) {
-			cstate.servo_pos += 0.02;//abs(roll_adjusted)*kPTilt;
-		} else if (roll_adjusted < -0.2 && cstate.servo_pos > -1) {
-			cstate.servo_pos -= 0.02;//abs(roll_adjusted)*kPTilt;
+		// if (roll_adjusted > 0.1) {
+		// 	cstate.servo_pos += fabs(roll_adjusted)*kPRoll;
+		// } else if (roll_adjusted < -0.1) {
+		// 	cstate.servo_pos -= fabs(roll_adjusted)*kPRoll;
+		// }
+
+		p = error_roll;
+		d = ((error_roll-prev_error_roll)/((double) (rc_nanos_since_boot() - prev_time))*1000000000);
+
+		if (error_roll < 0.8 && error_roll > -0.8) {
+			i += (((rc_nanos_since_boot() - prev_time)*1000000000)*(error_roll + prev_error_roll))/2.0;
+		}
+		printf("kD: %lf\n", kDRoll);
+
+		if (error_roll > 0.1 || error_roll < -0.1) {
+			cstate.servo_pos += p*kPRoll + i*kIRoll - d*kDRoll;
+		} else {
+			cstate.servo_pos += i*kIRoll - d*kDRoll;
+		}
+
+		if (cstate.servo_pos > 1) {
+			cstate.servo_pos = 1;
+		} else if (cstate.servo_pos < -1) {
+			cstate.servo_pos = -1;
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
@@ -406,6 +457,10 @@ static void __balance_controller(void)
 		rc_set_state(EXITING);
 		return;
 	}
+
+	prev_time = rc_nanos_since_boot();
+	prev_error_roll = error_roll;
+
 	/*************************************************************
 	* check for various exit conditions AFTER state estimate
 	***************************************************************/
@@ -423,7 +478,7 @@ static void __balance_controller(void)
 		return;
 	}
 
-	usleep(1);
+	usleep(10000);
 	return;
 }
 
