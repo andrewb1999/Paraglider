@@ -9,6 +9,7 @@
 #include <stdlib.h> // for strtof()
 #include <math.h> // for M_PI
 #include <robotcontrol.h>
+#include <ncurses.h>
 #include <rc/servo.h>
 #include <signal.h>
 #include <rc/time.h>
@@ -17,12 +18,13 @@
 #include "rc_balance_defs.h"
 
 //Paraglider Constants
-#define ANGLE_OFFSET 0.042
-#define kPRoll 0.1
-#define kIRoll 0.000000000000000000000001 //0.01
+#define ANGLE_OFFSET 0.02
+#define kPYaw 0.01
+#define kIYaw 0.000000000000000000000002
 //#define kDRoll 00 //2300
+#define PARALLEL -0.05
 
-double kDRoll = 1230;
+double kDYaw = 0;
 
 /**
  * ARMED or DISARMED to indicate if the controller is running
@@ -38,7 +40,7 @@ typedef enum arm_state_t{
  */
 typedef struct setpoint_t{
 	arm_state_t arm_state;	///< see arm_state_t declaration
-	double roll;
+	double yaw;
 	double pitch;		
 }setpoint_t;
 
@@ -59,7 +61,9 @@ typedef enum m_input_mode_t{
 	NONE,
 	DSM,
 	STDIN,
-	TUNE
+	TUNE,
+	KEYBOARD,
+	TIME
 } m_input_mode_t;
 
 
@@ -116,6 +120,19 @@ int main(int argc, char *argv[])
 	pthread_t setpoint_thread = 0;
 	pthread_t battery_thread = 0;
 	pthread_t printf_thread = 0;
+	int i;
+	double sweep_limit = 0;	// max throttle allowed when sweeping
+	int oneshot_en = 0;	// set to 1 if oneshot is enabled
+	double thr = 0;		// normalized throttle
+	int width_us = 0;	// pulse width in microseconds mode
+	int ch = 0;		// channel to test, 0 means all channels
+	int radio_ch;		// DSM radio channel to watch
+	double dir = 1;		// switches between 1 & -1 in sweep mode
+	uint64_t dsm_nanos;	// nanoseconds since last dsm packet
+	int frequency_hz = 50;	// default 50hz frequency to send pulses
+	int wakeup_en = 1;	// wakeup period enabled by default
+	double wakeup_s = 3.0;	// wakeup period in seconds
+	double wakeup_val = -0.1;// wakeup value
 
 	// parse arguments
 	opterr = 0;
@@ -130,6 +147,10 @@ int main(int argc, char *argv[])
 				m_input_mode = TUNE;
 			} else if(!strcmp("none", optarg)){
 				m_input_mode = NONE;
+			} else if(!strcmp("keyboard", optarg)){
+				m_input_mode = KEYBOARD;
+			} else if(!strcmp("time", optarg)){
+				m_input_mode = TIME;
 			} else {
 				__print_usage();
 				return -1;
@@ -202,7 +223,8 @@ int main(int argc, char *argv[])
 	// set up mpu configuration
 	rc_mpu_config_t mpu_config = rc_mpu_default_config();
 	mpu_config.dmp_sample_rate = SAMPLE_RATE_HZ;
-	mpu_config.orient = ORIENTATION_X_FORWARD;
+	mpu_config.orient = ORIENTATION_X_DOWN;
+	setpoint.arm_state = DISARMED;
 
 	// if gyro isn't calibrated, run the calibration routine
 	if(!rc_mpu_is_gyro_calibrated()){
@@ -212,8 +234,7 @@ int main(int argc, char *argv[])
 	}
 
 	// make sure setpoint starts at normal values
-	setpoint.arm_state = ARMED;
-	cstate.servo_pos = 0;
+
 
 	// // set up D1 Theta controller
 	// double D1_num[] = D1_NUM;
@@ -281,7 +302,6 @@ int main(int argc, char *argv[])
 
 	// start in the RUNNING state, pressing the pause button will swap to
 	// the PAUSED state then back again.
-	printf("\nHold your MIP upright to begin balancing\n");
 	rc_set_state(RUNNING);
 
 	// set signal handler so the loop can exit cleanly
@@ -290,11 +310,42 @@ int main(int argc, char *argv[])
 
 	// initialize PRU
 	if(rc_servo_init()) return -1;
-
+	int x = 1;
 	// turn on power
 	printf("Turning On 6V Servo Power Rail\n");
-	rc_servo_power_rail_en(1);
+	if (x = rc_servo_power_rail_en(1)) {
+		printf("Failed to turn on 6v rail\n");
+		printf("Error Code: %d\n", x);
+		return -1;
+	}
 
+	if(rc_servo_set_esc_range(RC_ESC_DEFAULT_MIN_US,RC_ESC_DEFAULT_MAX_US)) return -1;
+
+	if(wakeup_en){
+		printf("waking ESC up from idle for 3 seconds\n");
+		for(i=0;i<=frequency_hz*wakeup_s;i++){
+			if(running==0) return 0;
+			if(rc_servo_send_esc_pulse_normalized(2,wakeup_val)==-1) return -1;
+			rc_usleep(1000000/frequency_hz);
+		}
+		printf("done with wakeup period\n");
+	}
+
+	cstate.servo_pos = PARALLEL;
+	int j = 100;
+	while (j > 0) {
+		rc_servo_send_pulse_normalized(1, PARALLEL);
+		rc_servo_send_esc_pulse_normalized(2, 0);
+		usleep(100);
+		j--;
+	}
+
+	setpoint.arm_state = ARMED;
+
+	initscr();
+	noecho();
+	cbreak();
+	nodelay(stdscr, TRUE);
 	// this should be the last step in initialization
 	// to make sure other setup functions don't interfere
 	rc_mpu_set_dmp_callback(&__balance_controller);
@@ -314,7 +365,9 @@ int main(int argc, char *argv[])
 	// rc_filter_free(&D1);
 	// rc_filter_free(&D2);
 	// rc_filter_free(&D3);
+	endwin();
 	rc_mpu_power_off();
+	rc_servo_cleanup();
 	rc_led_set(RC_LED_GREEN, 0);
 	rc_led_set(RC_LED_RED, 0);
 	rc_led_cleanup();
@@ -353,11 +406,13 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
 		// 	continue;
 		// }
 		
-		setpoint.roll = 0;
+		setpoint.yaw = 0;
 
 		//sleep(10);
 		//setpoint.roll = 1;
 		//sleep(10);
+
+		if(setpoint.arm_state == DISARMED) continue;
 
 		// if dsm is active, update the setpoint rates
 		switch(m_input_mode){
@@ -365,12 +420,37 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
 
 			if ((ch = getchar()) != EOF){
 				if(ch == '['){
-					kDRoll += 10;
+					kDYaw += 10;
 				} else if(ch == ';'){
-					kDRoll -= 10;
+					kDYaw -= 10;
 				}
 			}
 
+			break;
+		case KEYBOARD:
+
+			if ((ch = getch()) != ERR){
+				if(ch == ' '){
+					cstate.servo_pos = PARALLEL;
+				} else if (ch == 'd') {
+					if (cstate.servo_pos < 0.5) {
+						cstate.servo_pos += 0.1;
+					}
+				} else if (ch == 'a') {
+					if (cstate.servo_pos > -0.5) {
+						cstate.servo_pos -= 0.1;
+					}
+				} else if (ch == '^c') {
+					rc_set_state(EXITING);
+				}
+			}
+
+			break;
+		case TIME:
+
+			sleep(7);
+			setpoint.arm_state = DISARMED;
+			rc_set_state(EXITING);
 			break;
 		default:
 			break;
@@ -388,33 +468,33 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
  */
 static void __balance_controller(void)
 {
-	static int inner_saturation_counter = 0;
-	double dutyL, dutyR;
-	double error_roll;
-	double prev_error_roll;
+	double error_yaw;
+	double prev_error_yaw;
 	double prev_time;
 	double time_diff;
+	double roll_adjusted;
 	double p;
 	double i;
 	double d;
+
 
 	/******************************************************************
 	* STATE_ESTIMATION
 	* read sensors and compute the state when either ARMED or DISARMED
 	******************************************************************/
 	// angle theta is positive in the direction of forward tip around X axis
-	cstate.roll = mpu_data.dmp_TaitBryan[TB_PITCH_X] - ANGLE_OFFSET;
-	error_roll = cstate.roll - setpoint.roll; //- ANGLE_OFFSET;
-	//roll_adjusted = ((double) ((int) (roll_adjusted*1000)) )/1000.0;
+	cstate.yaw = mpu_data.dmp_TaitBryan[TB_YAW_Z];// - ANGLE_OFFSET;
+	error_yaw = cstate.yaw - setpoint.yaw; //- ANGLE_OFFSET;
+	error_yaw = ((double) ((int) (error_yaw*10000)) )/10000.0;
 
 	if (first_balance_run) {
-		prev_error_roll = error_roll;
+		prev_error_yaw = error_yaw;
 		prev_time = 0;
 		i = 0;
 		first_balance_run = 0;
 	}
 
-	if (running) {
+	if (running && setpoint.arm_state == ARMED) {
 		// if (roll_adjusted <= 1 && roll_adjusted >= -1) {
 		// 	rc_servo_send_pulse_normalized(1, roll_adjusted);
 		// } else if (roll_adjusted > 1){
@@ -428,27 +508,25 @@ static void __balance_controller(void)
 		// 	cstate.servo_pos -= fabs(roll_adjusted)*kPRoll;
 		// }
 
-		p = error_roll;
-		d = ((error_roll-prev_error_roll)/((double) (rc_nanos_since_boot() - prev_time))*1000000000);
+		// p = -error_yaw;
+		// d = ((error_yaw-prev_error_yaw)/((double) (rc_nanos_since_boot() - prev_time))*1000000000);
 
-		if (error_roll < 0.8 && error_roll > -0.8) {
-			i += (((rc_nanos_since_boot() - prev_time)*1000000000)*(error_roll + prev_error_roll))/2.0;
-		}
-		printf("kD: %lf\n", kDRoll);
+		// if (error_yaw < 1 && error_yaw > -1) {
+		//  	i += (((rc_nanos_since_boot() - prev_time)*1000000000)*(-error_yaw - prev_error_yaw))/2.0;
+		// }
+		// printf("kD: %lf\n", kDYaw);
 
-		if (error_roll > 0.1 || error_roll < -0.1) {
-			cstate.servo_pos += p*kPRoll + i*kIRoll - d*kDRoll;
-		} else {
-			cstate.servo_pos += i*kIRoll - d*kDRoll;
-		}
+		cstate.servo_pos = -error_yaw*0.5 + PARALLEL;//p*kPYaw + i*kIYaw; // + d*kDYaw;
+		
 
-		if (cstate.servo_pos > 1) {
-			cstate.servo_pos = 1;
-		} else if (cstate.servo_pos < -1) {
-			cstate.servo_pos = -1;
+		if (cstate.servo_pos > 0.4) {
+		 	cstate.servo_pos = 0.4;
+		} else if (cstate.servo_pos < -0.4) {
+		 	cstate.servo_pos = -0.4;
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
+		rc_servo_send_esc_pulse_normalized(2, 0.85);
 	} else {
 		if (first_crtlc) {
 			printf("\nExiting paraglider\n");
@@ -459,13 +537,13 @@ static void __balance_controller(void)
 	}
 
 	prev_time = rc_nanos_since_boot();
-	prev_error_roll = error_roll;
+	prev_error_yaw = error_yaw;
 
 	/*************************************************************
 	* check for various exit conditions AFTER state estimate
 	***************************************************************/
 	if(rc_get_state()==EXITING){
-		
+		rc_servo_send_esc_pulse_normalized(2, 0);
 		return;
 	}
 	// if controller is still ARMED while state is PAUSED, disarm it
@@ -478,7 +556,7 @@ static void __balance_controller(void)
 		return;
 	}
 
-	usleep(10000);
+	rc_usleep(100);
 	return;
 }
 
@@ -492,7 +570,7 @@ static int __zero_out_controller(void)
 	// rc_filter_reset(&D1);
 	// rc_filter_reset(&D2);
 	// rc_filter_reset(&D3);
-	setpoint.roll = 0.0;
+	setpoint.yaw = 0.0;
 	setpoint.pitch   = 0.0;
 	return 0;
 }
@@ -516,8 +594,6 @@ static int __disarm_controller(void)
 static int __arm_controller(void)
 {
 	__zero_out_controller();
-	rc_encoder_eqep_write(ENCODER_CHANNEL_L,0);
-	rc_encoder_eqep_write(ENCODER_CHANNEL_R,0);
 	// prefill_filter_inputs(&D1,cstate.theta);
 	setpoint.arm_state = ARMED;
 	return 0;
@@ -558,9 +634,9 @@ static void* __printf_loop(__attribute__ ((unused)) void* ptr)
 		// check if this is the first time since being paused
 		if(new_rc_state==RUNNING && last_rc_state!=RUNNING){
 			printf("\nRUNNING: Hold upright to balance.\n");
-			printf("    θ    |");
-			printf("  θ_ref  |");
-			printf("    φ    |");
+			printf("    Y    |");
+			printf("  Y_ref  |");
+			printf("    S    |");
 			printf("  φ_ref  |");
 			printf("    γ    |");
 			printf("  D1_u   |");
@@ -577,9 +653,9 @@ static void* __printf_loop(__attribute__ ((unused)) void* ptr)
 		// decide what to print or exit
 		if(new_rc_state == RUNNING){
 			printf("\r");
-			printf("%7.3f  |", cstate.roll);
-			printf("%7.3f  |", setpoint.roll);
-			printf("%7.3f  |", cstate.pitch);
+			printf("%7.3f  |", cstate.yaw);
+			printf("%7.3f  |", setpoint.yaw);
+			printf("%7.3f  |", cstate.servo_pos);
 			printf("%7.3f  |", setpoint.pitch);
 			printf("%7.3f  |", 0.0);
 			printf("%7.3f  |", 0.0);
