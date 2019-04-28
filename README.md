@@ -1,3 +1,14 @@
+## 4/17/19 : Prototype 2
+We updated our prototype 1 design to accomidate a 6 inch propeller for thrust.  It functioned better than prototype 1, but it became clear that we do not have enough thrust.  We decided that for prototype 3 we will switch to 8 inch propellors and a 3s battery rather than a 2s battery.  These changes should give use 5-6 times as much thrust.  We also decided that the way we attached the acrylic at a 90 degree angle is not strong enough, so we will be changing this as well for the next version.
+
+Prototype 2:
+
+![Image of Prototype 1](images/Proto2-3.jpg)
+
+Prototype 2 With Parachute:
+
+![Image of Prototype 1](images/Proto2-2.jpg)
+
 ## 4/13/19 : Prototype 1
 Over the past few days we designed and lasercut our first prototype paraglider gondola.  We also started working on PID stabilization and tested the paraglider.  The big takeaway from this week is that the paraglider absolutely has to be powered to fly for more than 1-2 seconds.  Researching further, paragliders utilize a ram aerofoil which require constant power to inflate an provide lift.  We will now be adding the propeller as part of our baseline goals rather than as a reach goal.
 
