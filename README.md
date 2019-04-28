@@ -1,5 +1,22 @@
+## 4/26/19 : Prototype 3
+Today we finished making prototype 3, which is much stiffer and provides drastically more thrust than prototype 2.
+
+Prototype 3:
+
+![Image of Prototype 1](images/Proto3-1.jpg)
+
+Video of Increased Thrust:
+
+[![](http://img.youtube.com/vi/8ff7JRuJvxQ/0.jpg)](http://www.youtube.com/watch?v=8ff7JRuJvxQ "Thrust Demo")
+
+We also had our first successful flight so far, but crashed into the sidewalk.  It was scratched but luckily nothing broke.
+
+Video:
+
+[![](http://img.youtube.com/vi/C3UjWpbnoko/0.jpg)](http://www.youtube.com/watch?v=C3UjWpbnoko "Prototype 3 Successful Flight #1")
+
 ## 4/17/19 : Prototype 2
-We updated our prototype 1 design to accomidate a 6 inch propeller for thrust.  It functioned better than prototype 1, but it became clear that we do not have enough thrust.  We decided that for prototype 3 we will switch to 8 inch propellors and a 3s battery rather than a 2s battery.  These changes should give use 5-6 times as much thrust.  We also decided that the way we attached the acrylic at a 90 degree angle is not strong enough, so we will be changing this as well for the next version.
+We updated our prototype 1 design to accomidate a 6 inch propeller for thrust and switched to the much stiffer carbon fiber rods.  It functioned better than prototype 1, but it became clear that we do not have enough thrust.  We decided that for prototype 3 we will switch to 8 inch propellors and a 3s battery rather than a 2s battery.  These changes should give use 5-6 times as much thrust.  We also decided that the way we attached the acrylic at a 90 degree angle is not strong enough, so we will be changing this as well for the next version.
 
 Prototype 2:
 
