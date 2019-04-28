@@ -3,7 +3,7 @@ Over the past few days we designed and lasercut our first prototype paraglider g
 
 Prototype 1:
 
-![Image of Prototype 1](images/Proto1.jpg)
+![Image of Prototype 1](images/Proto1-2.jpg)
 
 Video of Laser Cutting:
 
