@@ -18,7 +18,7 @@
 #include "rc_balance_defs.h"
 
 //Paraglider Constants
-#define ANGLE_OFFSET 0.02
+#define ANGLE_OFFSET 0.1
 #define kPYaw 0.01
 #define kIYaw 0.000000000000000000000002
 //#define kDRoll 00 //2300
@@ -516,7 +516,7 @@ static void __balance_controller(void)
 		// }
 		// printf("kD: %lf\n", kDYaw);
 
-		cstate.servo_pos = -error_yaw*0.5 + PARALLEL;//p*kPYaw + i*kIYaw; // + d*kDYaw;
+		cstate.servo_pos = -error_yaw*0.5 + PARALLEL + ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
 		
 
 		if (cstate.servo_pos > 0.4) {
@@ -526,7 +526,7 @@ static void __balance_controller(void)
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
-		rc_servo_send_esc_pulse_normalized(2, 0.85);
+		rc_servo_send_esc_pulse_normalized(2, 0.75);
 	} else {
 		if (first_crtlc) {
 			printf("\nExiting paraglider\n");
