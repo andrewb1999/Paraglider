@@ -1,3 +1,1 @@
-# Paraglider
-## ESE 350
-## Group 4
+# ESE 350 Group 4: RC Paraglider
