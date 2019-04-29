@@ -15,6 +15,19 @@ Prototype 3 Successful Flight #3:
 
 [![](http://img.youtube.com/vi/GeHVxiIZD3Y/0.jpg)](http://www.youtube.com/watch?v=GeHVxiIZD3Y "Prototype 3 Successful Flight #3")
 
+For the next flight we increased the motor power to 75%, getting us pretty close to the optimal amount of thrust.  This was by far our most successful flight yet in terms of distance and time in the air.  It tended to steer left and the servo was unable to compensate for this, but we think this can be fixed by loosening the strings on the left side of the paraglider slightly.  As a result of our lack of steering control, the paraglider ended up getting stuck in a tree and had to be retrieved by a helpful observer.
+
+Prototype 3 Successful Flight #4:
+
+[![](http://img.youtube.com/vi/cKtbJXNIHNs/0.jpg)](http://www.youtube.com/watch?v=cKtbJXNIHNs "Prototype 3 Successful Flight #4")
+
+Photo of the Paraglider Stuck in a Tree:
+
+![Image of Prototype 1](images/Stuck-In-Tree-2.jpg)
+
+Retrieving the Paraglider:
+
+[![](http://img.youtube.com/vi/-4fFtbjMTS4/0.jpg)](http://www.youtube.com/watch?v=-4fFtbjMTS4 "Retrieving From Tree")
 
 ## 4/26/19 : Prototype 3
 Today we finished making prototype 3, which is much stiffer and provides drastically more thrust than prototype 2.
