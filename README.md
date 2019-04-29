@@ -1,3 +1,21 @@
+## 4/27/19 : Testing
+We started out the day by flying the paraglider outside of Towne.  Shortly after taking off it make a sharp turn right and hit Towne at full speed, shattering the acrylic frame.  Fortunately, none of the electronics were damaged.
+
+![Image of Prototype 1](images/Proto3-Broken.jpg)
+
+We laser cut a new frame out of acrylic which is almost identical to prototype 3.  We then tested the new frame further away from a building.  In this test the motor power was too high (85%), causing the paraglider to tilt back and stall.
+
+Prototype 3 Successful Flight #2:
+
+[![](http://img.youtube.com/vi/315FXbrf8_s/0.jpg)](http://www.youtube.com/watch?v=315FXbrf8_s "Prototype 3 Successful Flight #2")
+
+The frame broke in that flight as well, but only into a few pieces allowing us to glue it back together for more tests.  This next test we had the power too low (65%), but it flew pretty straight.
+
+Prototype 3 Successful Flight #3:
+
+[![](http://img.youtube.com/vi/GeHVxiIZD3Y/0.jpg)](http://www.youtube.com/watch?v=GeHVxiIZD3Y "Prototype 3 Successful Flight #3")
+
+
 ## 4/26/19 : Prototype 3
 Today we finished making prototype 3, which is much stiffer and provides drastically more thrust than prototype 2.
 
@@ -11,7 +29,7 @@ Video of Increased Thrust:
 
 We also had our first successful flight so far, but crashed into the sidewalk.  It was scratched but luckily nothing broke.
 
-Video:
+Successful Flight Video:
 
 [![](http://img.youtube.com/vi/C3UjWpbnoko/0.jpg)](http://www.youtube.com/watch?v=C3UjWpbnoko "Prototype 3 Successful Flight #1")
 
