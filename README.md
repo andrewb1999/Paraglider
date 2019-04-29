@@ -1,3 +1,12 @@
+## 4/28/19 : Lessons From Baseline Demo Day
+Overall our baseline demo was a success, especially after the few good flights we got in yesterday.  The following are our areas of improvement before the reach demo, ranked in importance:
+
+1. Remake parts of the araglider body out of MDF so it is less brittle.
+2. Introduce steering controls over wifi with an ESP32 based controller.
+3. Tune the parachute and fix stabilization so the paraglider flies straight.
+4. Introduce some landing sequence so landing can be done without crashing.
+5. Reduce weight/keep weight low. 
+
 ## 4/27/19 : Testing
 We started out the day by flying the paraglider outside of Towne.  Shortly after taking off it make a sharp turn right and hit Towne at full speed, shattering the acrylic frame.  Fortunately, none of the electronics were damaged.
 
