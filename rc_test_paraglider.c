@@ -14,8 +14,16 @@
 #include <signal.h>
 #include <rc/time.h>
 #include <rc/adc.h>
+#include <string.h> 
+#include <sys/types.h> 
+#include <sys/socket.h> 
+#include <arpa/inet.h> 
+#include <netinet/in.h>
 
 #include "rc_balance_defs.h"
+
+#define PORT     44444 
+#define MAXLINE 1024
 
 //Paraglider Constants
 #define ANGLE_OFFSET 0.1
@@ -63,7 +71,8 @@ typedef enum m_input_mode_t{
 	STDIN,
 	TUNE,
 	KEYBOARD,
-	TIME
+	TIME,
+	JOYSTICK
 } m_input_mode_t;
 
 
@@ -72,6 +81,8 @@ static void __balance_controller(void);		///< mpu interrupt routine
 static void* __setpoint_manager(void* ptr);	///< background thread
 static void* __battery_checker(void* ptr);	///< background thread
 static void* __printf_loop(void* ptr);		///< background thread
+static void* __network_manager(void* ptr);
+static void* __time_manager(void* ptr);
 static int __zero_out_controller(void);
 static int __disarm_controller(void);
 static int __arm_controller(void);
@@ -86,6 +97,7 @@ setpoint_t setpoint;
 rc_filter_t D = RC_FILTER_INITIALIZER;
 rc_mpu_data_t mpu_data;
 m_input_mode_t m_input_mode = NONE;
+double steering_stick = 0.0;
 
 static int running;
 int first_crtlc = 1;
@@ -120,15 +132,9 @@ int main(int argc, char *argv[])
 	pthread_t setpoint_thread = 0;
 	pthread_t battery_thread = 0;
 	pthread_t printf_thread = 0;
+	pthread_t network_thread = 0;
+	pthread_t time_thread = 0;
 	int i;
-	double sweep_limit = 0;	// max throttle allowed when sweeping
-	int oneshot_en = 0;	// set to 1 if oneshot is enabled
-	double thr = 0;		// normalized throttle
-	int width_us = 0;	// pulse width in microseconds mode
-	int ch = 0;		// channel to test, 0 means all channels
-	int radio_ch;		// DSM radio channel to watch
-	double dir = 1;		// switches between 1 & -1 in sweep mode
-	uint64_t dsm_nanos;	// nanoseconds since last dsm packet
 	int frequency_hz = 50;	// default 50hz frequency to send pulses
 	int wakeup_en = 1;	// wakeup period enabled by default
 	double wakeup_s = 3.0;	// wakeup period in seconds
@@ -151,6 +157,8 @@ int main(int argc, char *argv[])
 				m_input_mode = KEYBOARD;
 			} else if(!strcmp("time", optarg)){
 				m_input_mode = TIME;
+			} else if(!strcmp("joystick", optarg)){
+				m_input_mode = JOYSTICK;
 			} else {
 				__print_usage();
 				return -1;
@@ -300,6 +308,17 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	// start balance stack to control setpoints
+	if(rc_pthread_create(&network_thread, __network_manager, (void*) NULL, SCHED_OTHER, 0)){
+		fprintf(stderr, "failed to start network thread\n");
+		return -1;
+	}
+
+	if(rc_pthread_create(&time_thread, __time_manager, (void*) NULL, SCHED_OTHER, 0)){
+		fprintf(stderr, "failed to start network thread\n");
+		return -1;
+	}
+
 	// start in the RUNNING state, pressing the pause button will swap to
 	// the PAUSED state then back again.
 	rc_set_state(RUNNING);
@@ -313,7 +332,7 @@ int main(int argc, char *argv[])
 	int x = 1;
 	// turn on power
 	printf("Turning On 6V Servo Power Rail\n");
-	if (x = rc_servo_power_rail_en(1)) {
+	if ((x = rc_servo_power_rail_en(1))) {
 		printf("Failed to turn on 6v rail\n");
 		printf("Error Code: %d\n", x);
 		return -1;
@@ -342,10 +361,12 @@ int main(int argc, char *argv[])
 
 	setpoint.arm_state = ARMED;
 
+/*
 	initscr();
 	noecho();
 	cbreak();
 	nodelay(stdscr, TRUE);
+	*/
 	// this should be the last step in initialization
 	// to make sure other setup functions don't interfere
 	rc_mpu_set_dmp_callback(&__balance_controller);
@@ -360,6 +381,8 @@ int main(int argc, char *argv[])
 	rc_pthread_timed_join(setpoint_thread, NULL, 1.5);
 	rc_pthread_timed_join(battery_thread, NULL, 1.5);
 	rc_pthread_timed_join(printf_thread, NULL, 1.5);
+	rc_pthread_timed_join(network_thread, NULL, 1.5);
+	rc_pthread_timed_join(time_thread, NULL, 1.5);
 
 	// // cleanup
 	// rc_filter_free(&D1);
@@ -377,6 +400,57 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+void* __time_manager(__attribute__ ((unused)) void* ptr) {
+	sleep(200);
+	setpoint.arm_state = DISARMED;
+	rc_set_state(EXITING);
+	return NULL;
+}
+
+void* __network_manager(__attribute__ ((unused)) void* ptr) {
+	int sockfd; 
+    char buffer[MAXLINE]; 
+    char *hello = "H"; 
+    struct sockaddr_in servaddr, cliaddr; 
+      
+      // Creating socket file descriptor 
+	    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+	        perror("socket creation failed"); 
+	        exit(EXIT_FAILURE); 
+	    } 
+	      
+	    memset(&servaddr, 0, sizeof(servaddr)); 
+	    memset(&cliaddr, 0, sizeof(cliaddr)); 
+	      
+	    // Filling server information 
+	    servaddr.sin_family    = AF_INET; // IPv4 
+	    servaddr.sin_addr.s_addr = INADDR_ANY; 
+	    servaddr.sin_port = htons(PORT); 
+	      
+	    // Bind the socket with the server address 
+	    if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
+	            sizeof(servaddr)) < 0 ) 
+	    { 
+	        perror("bind failed");
+	        exit(EXIT_FAILURE);
+	    } 
+	    int len, n;
+    while(rc_get_state()!=EXITING){
+	    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
+	                MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
+	                &len); 
+	    buffer[n] = '\0';
+	    sscanf(buffer, "%lf", &steering_stick);
+	    //printf("Client : %s\n", buffer); 
+	    //sendto(sockfd, (const char *)hello, strlen(hello),  
+	      //  MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
+	        //    len); 
+	    //printf("Hello message sent.\n");
+	}
+
+    return NULL;
+}
+
 /**
  * This thread is in charge of adjusting the controller setpoint based on user
  * inputs from dsm radio control. Also detects pickup to control arming the
@@ -386,16 +460,15 @@ int main(int argc, char *argv[])
  *
  * @return     { description_of_the_return_value }
  */
-void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
-{
+void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 	double drive_stick, turn_stick; // input sticks
-	int i, ch, chan, stdin_timeout = 0; // for stdin input
+	int ch, stdin_timeout = 0; // for stdin input
 	char in_str[11];
 
 	while(rc_get_state()!=EXITING){
 
 		// sleep at beginning of loop so we can use the 'continue' statement
-		rc_usleep(1000000/SETPOINT_MANAGER_HZ);
+		rc_usleep(1000);
 		// if we got here the state is RUNNING, but controller is not
 		// necessarily armed. If DISARMED, wait for the user to pick MIP up
 		// which will we detected by wait_for_starting_condition()
@@ -406,7 +479,7 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
 		// 	continue;
 		// }
 		
-		setpoint.yaw = 0;
+		//setpoint.yaw = 0;
 
 		//sleep(10);
 		//setpoint.roll = 1;
@@ -451,6 +524,10 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr)
 			sleep(7);
 			setpoint.arm_state = DISARMED;
 			rc_set_state(EXITING);
+			break;
+		case JOYSTICK:
+			setpoint.yaw -= (steering_stick - 0.44)*0.005;
+			printf("%lf : %lf\n", setpoint.yaw, steering_stick);
 			break;
 		default:
 			break;
@@ -519,10 +596,10 @@ static void __balance_controller(void)
 		cstate.servo_pos = -error_yaw*0.5 + PARALLEL + ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
 		
 
-		if (cstate.servo_pos > 0.4) {
-		 	cstate.servo_pos = 0.4;
-		} else if (cstate.servo_pos < -0.4) {
-		 	cstate.servo_pos = -0.4;
+		if (cstate.servo_pos > 0.7) {
+		 	cstate.servo_pos = 0.7;
+		} else if (cstate.servo_pos < -0.7) {
+		 	cstate.servo_pos = -0.7;
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
@@ -633,17 +710,17 @@ static void* __printf_loop(__attribute__ ((unused)) void* ptr)
 		new_rc_state = rc_get_state();
 		// check if this is the first time since being paused
 		if(new_rc_state==RUNNING && last_rc_state!=RUNNING){
-			printf("\nRUNNING: Hold upright to balance.\n");
-			printf("    Y    |");
-			printf("  Y_ref  |");
-			printf("    S    |");
-			printf("  φ_ref  |");
-			printf("    γ    |");
-			printf("  D1_u   |");
-			printf("  D3_u   |");
-			printf("  vBatt  |");
-			printf("arm_state|");
-			printf("\n");
+			// printf("\nRUNNING: Hold upright to balance.\n");
+			// printf("    Y    |");
+			// printf("  Y_ref  |");
+			// printf("    S    |");
+			// printf("  φ_ref  |");
+			// printf("    γ    |");
+			// printf("  D1_u   |");
+			// printf("  D3_u   |");
+			// printf("  vBatt  |");
+			// printf("arm_state|");
+			// printf("\n");
 		}
 		else if(new_rc_state==PAUSED && last_rc_state!=PAUSED){
 			printf("\nPAUSED: press pause again to start.\n");
@@ -652,18 +729,18 @@ static void* __printf_loop(__attribute__ ((unused)) void* ptr)
 
 		// decide what to print or exit
 		if(new_rc_state == RUNNING){
-			printf("\r");
-			printf("%7.3f  |", cstate.yaw);
-			printf("%7.3f  |", setpoint.yaw);
-			printf("%7.3f  |", cstate.servo_pos);
-			printf("%7.3f  |", setpoint.pitch);
-			printf("%7.3f  |", 0.0);
-			printf("%7.3f  |", 0.0);
-			printf("%7.3f  |", 0.0);
-			printf("%7.3f  |", cstate.vBatt);
+			// printf("\r");
+			// printf("%7.3f  |", cstate.yaw);
+			// printf("%7.3f  |", setpoint.yaw);
+			// printf("%7.3f  |", cstate.servo_pos);
+			// printf("%7.3f  |", setpoint.pitch);
+			// printf("%7.3f  |", 0.0);
+			// printf("%7.3f  |", 0.0);
+			// printf("%7.3f  |", 0.0);
+			// printf("%7.3f  |", cstate.vBatt);
 
-			if(setpoint.arm_state == ARMED) printf("  ARMED  |");
-			else printf("DISARMED |");
+			// if(setpoint.arm_state == ARMED) printf("  ARMED  |");
+			// else printf("DISARMED |");
 			fflush(stdout);
 		}
 		rc_usleep(1000000 / PRINTF_HZ);
