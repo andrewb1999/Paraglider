@@ -37,18 +37,21 @@ void setup(){
   udp.begin(udpPort);
   adc1_config_width(ADC_WIDTH_BIT_12);
   adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_3, ADC_ATTEN_DB_11);
 }
 
 void loop(){
   //data will be sent to server
   char buffer[50];
   char bufferc[50];
-  int val;
-  float conv;
-  //send hello world to server
-  val = adc1_get_raw(ADC1_CHANNEL_0);
-  conv = (val+1.0)/(4096.0);
-  sprintf(buffer, "%1.4f    ", conv);
+  int x, y;
+  float x_conv, y_conv;
+  x = adc1_get_raw(ADC1_CHANNEL_0);
+  x_conv = (x+1.0)/(4096.0);
+  y = adc1_get_raw(ADC1_CHANNEL_3);
+  y_conv = (y+1.0)/(4096.0);
+  sprintf(buffer, "%1.2f|%1.2f      ", x_conv, y_conv);
+  Serial.println(buffer);
   udp.beginPacket(udpAddress, udpPort);
   udp.write((uint8_t *)buffer, 11);
   udp.endPacket();
@@ -57,11 +60,11 @@ void loop(){
   //processing incoming packet, must be called before reading the buffer
   udp.parsePacket();
   //receive response from server, it will be HELLO WORLD
-  if(udp.read((uint8_t *)buffer, 50) > 0){
+  /*if(udp.read((uint8_t *)buffer, 50) > 0){
     Serial.print("Server to client: ");
     Serial.println((char *)buffer);
     Serial.println(bufferc);
-  }
+  }*/
   //Wait for 1 second
   delay(10);
 }

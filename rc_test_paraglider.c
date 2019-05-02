@@ -11,6 +11,7 @@
 #include <robotcontrol.h>
 #include <ncurses.h>
 #include <rc/servo.h>
+#include <time.h>
 #include <signal.h>
 #include <rc/time.h>
 #include <rc/adc.h>
@@ -49,7 +50,7 @@ typedef enum arm_state_t{
 typedef struct setpoint_t{
 	arm_state_t arm_state;	///< see arm_state_t declaration
 	double yaw;
-	double pitch;		
+	double throttle;		
 }setpoint_t;
 
 /**
@@ -97,7 +98,13 @@ setpoint_t setpoint;
 rc_filter_t D = RC_FILTER_INITIALIZER;
 rc_mpu_data_t mpu_data;
 m_input_mode_t m_input_mode = NONE;
+struct timespec spec1;
+struct timespec spec2;
 double steering_stick = 0.0;
+double throttle_stick = 0.0;
+int wait_time = 100000;
+int n = 1;
+int waiting_on_udp = 0;
 
 static int running;
 int first_crtlc = 1;
@@ -401,7 +408,7 @@ int main(int argc, char *argv[])
 }
 
 void* __time_manager(__attribute__ ((unused)) void* ptr) {
-	sleep(200);
+	sleep(15);
 	setpoint.arm_state = DISARMED;
 	rc_set_state(EXITING);
 	return NULL;
@@ -434,18 +441,26 @@ void* __network_manager(__attribute__ ((unused)) void* ptr) {
 	        perror("bind failed");
 	        exit(EXIT_FAILURE);
 	    } 
-	    int len, n;
+	    int len;
+	    int j = 0;
     while(rc_get_state()!=EXITING){
+    	//steering_stick = 0.0;
+    	//throttle_stick = 0.0;
+    	n = 0;
+    	clock_gettime(CLOCK_REALTIME, &spec1);
+
+    	waiting_on_udp = spec1.tv_sec;
 	    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
 	                MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
-	                &len); 
+	                &len);
 	    buffer[n] = '\0';
-	    sscanf(buffer, "%lf", &steering_stick);
+	    sscanf(buffer, "%lf|%lf", &steering_stick, &throttle_stick);
+
 	    //printf("Client : %s\n", buffer); 
 	    //sendto(sockfd, (const char *)hello, strlen(hello),  
 	      //  MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
 	        //    len); 
-	    //printf("Hello message sent.\n");
+	    //printf("Hello\n");
 	}
 
     return NULL;
@@ -464,6 +479,7 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 	double drive_stick, turn_stick; // input sticks
 	int ch, stdin_timeout = 0; // for stdin input
 	char in_str[11];
+	int j = 0;
 
 	while(rc_get_state()!=EXITING){
 
@@ -526,8 +542,24 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 			rc_set_state(EXITING);
 			break;
 		case JOYSTICK:
-			setpoint.yaw -= (steering_stick - 0.44)*0.005;
-			printf("%lf : %lf\n", setpoint.yaw, steering_stick);
+			setpoint.yaw -= (steering_stick - 0.44)*0.003;
+			setpoint.throttle = (throttle_stick - 0.44)*0.52 + 0.8;
+
+			if (setpoint.throttle > 1) {
+				setpoint.throttle = 1;
+			} else if (setpoint.throttle < 0) {
+				setpoint.throttle = 0;
+			}
+
+			clock_gettime(CLOCK_REALTIME, &spec2);
+
+			if ((spec2.tv_sec - waiting_on_udp) > 1) {
+	    		printf("Joystick Disconnected\n");
+	    		rc_servo_send_esc_pulse_normalized(2, 0);
+	    		rc_set_state(EXITING);
+	    	}
+
+			printf("%lf : %lf\n", steering_stick, throttle_stick);
 			break;
 		default:
 			break;
@@ -583,7 +615,7 @@ static void __balance_controller(void)
 		// 	cstate.servo_pos += fabs(roll_adjusted)*kPRoll;
 		// } else if (roll_adjusted < -0.1) {
 		// 	cstate.servo_pos -= fabs(roll_adjusted)*kPRoll;
-		// }
+		// }-
 
 		// p = -error_yaw;
 		// d = ((error_yaw-prev_error_yaw)/((double) (rc_nanos_since_boot() - prev_time))*1000000000);
@@ -593,17 +625,18 @@ static void __balance_controller(void)
 		// }
 		// printf("kD: %lf\n", kDYaw);
 
-		cstate.servo_pos = -error_yaw*0.5 + PARALLEL + ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
+		cstate.servo_pos = error_yaw*0.5;// - PARALLEL - ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
 		
 
-		if (cstate.servo_pos > 0.7) {
-		 	cstate.servo_pos = 0.7;
-		} else if (cstate.servo_pos < -0.7) {
-		 	cstate.servo_pos = -0.7;
+		if (cstate.servo_pos > 0.25) {
+		 	cstate.servo_pos = 0.25;
+		} else if (cstate.servo_pos < -0.25) {
+		 	cstate.servo_pos = -0.25;
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
-		rc_servo_send_esc_pulse_normalized(2, 0.75);
+		rc_servo_send_esc_pulse_normalized(7, setpoint.throttle);
+		//printf("%lf \n", setpoint.throttle);
 	} else {
 		if (first_crtlc) {
 			printf("\nExiting paraglider\n");
@@ -648,7 +681,7 @@ static int __zero_out_controller(void)
 	// rc_filter_reset(&D2);
 	// rc_filter_reset(&D3);
 	setpoint.yaw = 0.0;
-	setpoint.pitch   = 0.0;
+	setpoint.throttle   = 0.0;
 	return 0;
 }
 
