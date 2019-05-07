@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <rc/time.h>
 #include <rc/adc.h>
+#include <rc/uart.h>
 #include <string.h> 
 #include <sys/types.h> 
 #include <sys/socket.h> 
@@ -84,6 +85,7 @@ static void* __battery_checker(void* ptr);	///< background thread
 static void* __printf_loop(void* ptr);		///< background thread
 static void* __network_manager(void* ptr);
 static void* __time_manager(void* ptr);
+static void* __serial_manager(void* ptr);
 static int __zero_out_controller(void);
 static int __disarm_controller(void);
 static int __arm_controller(void);
@@ -141,6 +143,7 @@ int main(int argc, char *argv[])
 	pthread_t printf_thread = 0;
 	pthread_t network_thread = 0;
 	pthread_t time_thread = 0;
+	pthread_t serial_thread = 0;
 	int i;
 	int frequency_hz = 50;	// default 50hz frequency to send pulses
 	int wakeup_en = 1;	// wakeup period enabled by default
@@ -326,6 +329,11 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	if(rc_pthread_create(&serial_thread, __serial_manager, (void*) NULL, SCHED_OTHER, 0)){
+		fprintf(stderr, "failed to start network thread\n");
+		return -1;
+	}
+
 	// start in the RUNNING state, pressing the pause button will swap to
 	// the PAUSED state then back again.
 	rc_set_state(RUNNING);
@@ -388,8 +396,9 @@ int main(int argc, char *argv[])
 	rc_pthread_timed_join(setpoint_thread, NULL, 1.5);
 	rc_pthread_timed_join(battery_thread, NULL, 1.5);
 	rc_pthread_timed_join(printf_thread, NULL, 1.5);
-	rc_pthread_timed_join(network_thread, NULL, 1.5);
+	//rc_pthread_timed_join(network_thread, NULL, 1.5);
 	rc_pthread_timed_join(time_thread, NULL, 1.5);
+	rc_pthread_timed_join(serial_thread, NULL, 1.5);
 
 	// // cleanup
 	// rc_filter_free(&D1);
@@ -408,10 +417,39 @@ int main(int argc, char *argv[])
 }
 
 void* __time_manager(__attribute__ ((unused)) void* ptr) {
-	sleep(15);
+	sleep(300);
 	setpoint.arm_state = DISARMED;
 	rc_set_state(EXITING);
 	return NULL;
+}
+
+void* __serial_manager(__attribute__ ((unused)) void* ptr) {
+	uint8_t buffer[6];
+	char* test_str = "Hello World";
+	int ret;
+
+	if (rc_uart_init(1, 115200, 0.5, 0, 1, 0)) {
+		printf("Failed to rc_uart_init1\n");
+		rc_set_state(EXITING);
+		return NULL;
+	}
+
+	
+    while(rc_get_state()!=EXITING){
+    	//rc_uart_flush(1);
+        //rc_uart_write(1, (uint8_t*)test_str, 12);
+    	
+    	ret = rc_uart_read_bytes(1, buffer, 6);
+        if(ret<0) fprintf(stderr,"Error reading bus\n");
+        else if(ret==0) printf("timeout reached, %d bytes read\n", ret);
+        else printf("Received %d bytes: %s \n", ret, buffer);
+        rc_uart_flush(1);
+        usleep(10);
+        
+	}
+
+	rc_uart_close(1);
+    return NULL;
 }
 
 void* __network_manager(__attribute__ ((unused)) void* ptr) {
