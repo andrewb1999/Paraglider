@@ -107,6 +107,7 @@ double throttle_stick = 0.0;
 int wait_time = 100000;
 int n = 1;
 int waiting_on_udp = 0;
+int joystick_disconnected = 0;
 
 static int running;
 int first_crtlc = 1;
@@ -438,12 +439,19 @@ void* __serial_manager(__attribute__ ((unused)) void* ptr) {
     while(rc_get_state()!=EXITING){
     	//rc_uart_flush(1);
         //rc_uart_write(1, (uint8_t*)test_str, 12);
-    	
+    	clock_gettime(CLOCK_REALTIME, &spec1);
+
     	ret = rc_uart_read_bytes(1, buffer, 10);
-        if(ret<0) fprintf(stderr,"Error reading bus\n");
-        else if(ret==0) printf("timeout reached, %d bytes read\n", ret);
-        else printf("Received %d bytes: %s \n", ret, buffer);
+        if(ret<0) {
+        	fprintf(stderr,"Error reading bus\n");
+       	} else if(ret==0) { 
+        	printf("timeout reached, %d bytes read\n", ret);
+    	}// else {
+    		//joystick_disconnected = spec1.tv_sec;
+    	//}
+        //else printf("Received %d bytes: %s \n", ret, buffer);
         rc_uart_flush(1);
+        sscanf(buffer, "%lf|%lf", &steering_stick, &throttle_stick);
         usleep(10);
         
 	}
@@ -516,6 +524,7 @@ void* __network_manager(__attribute__ ((unused)) void* ptr) {
 void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 	double drive_stick, turn_stick; // input sticks
 	int ch, stdin_timeout = 0; // for stdin input
+	int isZero = 0;
 	char in_str[11];
 	int j = 0;
 
@@ -580,8 +589,8 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 			rc_set_state(EXITING);
 			break;
 		case JOYSTICK:
-			setpoint.yaw -= (steering_stick - 0.44)*0.003;
-			setpoint.throttle = (throttle_stick - 0.44)*0.52 + 0.8;
+			setpoint.yaw -= (steering_stick - 0.43)*0.003;
+			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.8;
 
 			if (setpoint.throttle > 1) {
 				setpoint.throttle = 1;
@@ -589,15 +598,34 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 				setpoint.throttle = 0;
 			}
 
-			clock_gettime(CLOCK_REALTIME, &spec2);
+			if (fabs(throttle_stick) < 0.01) {
+				if (!isZero) {
+					//printf("David");
+					clock_gettime(CLOCK_REALTIME, &spec1);
+					joystick_disconnected = spec1.tv_sec;
+					isZero = 1;
+				} else {
+					clock_gettime(CLOCK_REALTIME, &spec2);
+					printf("%d\n", spec2.tv_sec - joystick_disconnected);
+					if ((spec2.tv_sec - joystick_disconnected) > 2) {
+						printf("Joystick Disconnected\n");
+	    				rc_servo_send_esc_pulse_normalized(7, 0);
+	    				rc_set_state(EXITING);
+					}
+				}
+			} else {
+				isZero = 0;
+			}
 
-			if ((spec2.tv_sec - waiting_on_udp) > 1) {
-	    		printf("Joystick Disconnected\n");
-	    		rc_servo_send_esc_pulse_normalized(2, 0);
-	    		rc_set_state(EXITING);
-	    	}
+			// clock_gettime(CLOCK_REALTIME, &spec2);
 
-			printf("%lf : %lf\n", steering_stick, throttle_stick);
+			// if ((spec2.tv_sec - joystick_disconnected) > 2) {
+	  //   		printf("Joystick Disconnected\n");
+	  //   		rc_servo_send_esc_pulse_normalized(7, 0);
+	  //   		rc_set_state(EXITING);
+	  //   	}
+
+			//printf("%lf : %lf\n", steering_stick, throttle_stick);
 			break;
 		default:
 			break;
@@ -691,7 +719,7 @@ static void __balance_controller(void)
 	* check for various exit conditions AFTER state estimate
 	***************************************************************/
 	if(rc_get_state()==EXITING){
-		rc_servo_send_esc_pulse_normalized(2, 0);
+		rc_servo_send_esc_pulse_normalized(7, 0);
 		return;
 	}
 	// if controller is still ARMED while state is PAUSED, disarm it
