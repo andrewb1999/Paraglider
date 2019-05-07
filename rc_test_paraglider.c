@@ -424,7 +424,7 @@ void* __time_manager(__attribute__ ((unused)) void* ptr) {
 }
 
 void* __serial_manager(__attribute__ ((unused)) void* ptr) {
-	uint8_t buffer[6];
+	uint8_t buffer[10];
 	char* test_str = "Hello World";
 	int ret;
 
@@ -439,7 +439,7 @@ void* __serial_manager(__attribute__ ((unused)) void* ptr) {
     	//rc_uart_flush(1);
         //rc_uart_write(1, (uint8_t*)test_str, 12);
     	
-    	ret = rc_uart_read_bytes(1, buffer, 6);
+    	ret = rc_uart_read_bytes(1, buffer, 10);
         if(ret<0) fprintf(stderr,"Error reading bus\n");
         else if(ret==0) printf("timeout reached, %d bytes read\n", ret);
         else printf("Received %d bytes: %s \n", ret, buffer);
