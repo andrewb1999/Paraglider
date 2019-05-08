@@ -590,7 +590,7 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 			break;
 		case JOYSTICK:
 			setpoint.yaw -= (steering_stick - 0.43)*0.003;
-			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.8;
+			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.85;
 
 			if (setpoint.throttle > 1) {
 				setpoint.throttle = 1;
@@ -607,7 +607,7 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 				} else {
 					clock_gettime(CLOCK_REALTIME, &spec2);
 					printf("%d\n", spec2.tv_sec - joystick_disconnected);
-					if ((spec2.tv_sec - joystick_disconnected) > 2) {
+					if ((spec2.tv_sec - joystick_disconnected) > 0) {
 						printf("Joystick Disconnected\n");
 	    				rc_servo_send_esc_pulse_normalized(7, 0);
 	    				rc_set_state(EXITING);
@@ -694,10 +694,10 @@ static void __balance_controller(void)
 		cstate.servo_pos = error_yaw*0.5;// - PARALLEL - ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
 		
 
-		if (cstate.servo_pos > 0.25) {
-		 	cstate.servo_pos = 0.25;
-		} else if (cstate.servo_pos < -0.25) {
-		 	cstate.servo_pos = -0.25;
+		if (cstate.servo_pos > 0.35) {
+		 	cstate.servo_pos = 0.35;
+		} else if (cstate.servo_pos < -0.35) {
+		 	cstate.servo_pos = -0.35;
 		}
 
 		rc_servo_send_pulse_normalized(1, cstate.servo_pos);
