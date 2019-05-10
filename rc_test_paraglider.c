@@ -345,6 +345,21 @@ int main(int argc, char *argv[])
 
 	// initialize PRU
 	if(rc_servo_init()) return -1;
+
+	if(rc_servo_set_esc_range(RC_ESC_DEFAULT_MIN_US,RC_ESC_DEFAULT_MAX_US)) return -1;
+
+
+	if(wakeup_en){
+		printf("waking ESC up from idle for 3 seconds\n");
+		for(i=0;i<=frequency_hz*wakeup_s;i++){
+			if(running==0) return 0;
+			if(rc_servo_send_esc_pulse_normalized(7,wakeup_val)==-1) return -1;
+			rc_usleep(1000000/frequency_hz);
+		}
+		printf("done with wakeup period\n");
+	}
+
+	
 	int x = 1;
 	// turn on power
 	printf("Turning On 6V Servo Power Rail\n");
@@ -352,18 +367,6 @@ int main(int argc, char *argv[])
 		printf("Failed to turn on 6v rail\n");
 		printf("Error Code: %d\n", x);
 		return -1;
-	}
-
-	if(rc_servo_set_esc_range(RC_ESC_DEFAULT_MIN_US,RC_ESC_DEFAULT_MAX_US)) return -1;
-
-	if(wakeup_en){
-		printf("waking ESC up from idle for 3 seconds\n");
-		for(i=0;i<=frequency_hz*wakeup_s;i++){
-			if(running==0) return 0;
-			if(rc_servo_send_esc_pulse_normalized(2,wakeup_val)==-1) return -1;
-			rc_usleep(1000000/frequency_hz);
-		}
-		printf("done with wakeup period\n");
 	}
 
 	cstate.servo_pos = PARALLEL;
@@ -405,7 +408,8 @@ int main(int argc, char *argv[])
 	// rc_filter_free(&D1);
 	// rc_filter_free(&D2);
 	// rc_filter_free(&D3);
-	endwin();
+	//endwin();
+	rc_servo_send_esc_pulse_normalized(7,-0.1);
 	rc_mpu_power_off();
 	rc_servo_cleanup();
 	rc_led_set(RC_LED_GREEN, 0);
@@ -418,7 +422,7 @@ int main(int argc, char *argv[])
 }
 
 void* __time_manager(__attribute__ ((unused)) void* ptr) {
-	sleep(300);
+	sleep(30);
 	setpoint.arm_state = DISARMED;
 	rc_set_state(EXITING);
 	return NULL;
@@ -590,7 +594,7 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 			break;
 		case JOYSTICK:
 			setpoint.yaw -= (steering_stick - 0.43)*0.003;
-			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.85;
+			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.8;
 
 			if (setpoint.throttle > 1) {
 				setpoint.throttle = 1;
@@ -719,7 +723,7 @@ static void __balance_controller(void)
 	* check for various exit conditions AFTER state estimate
 	***************************************************************/
 	if(rc_get_state()==EXITING){
-		rc_servo_send_esc_pulse_normalized(7, 0);
+		//rc_servo_send_esc_pulse_normalized(7, 0);
 		return;
 	}
 	// if controller is still ARMED while state is PAUSED, disarm it
