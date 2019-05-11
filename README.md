@@ -1,7 +1,10 @@
+## 5/1/19 : Changes for Reach Demo Day
+
+
 ## 4/28/19 : Lessons From Baseline Demo Day
 Overall our baseline demo was a success, especially after the few good flights we got in yesterday.  The following are our areas of improvement before the reach demo, ranked in importance:
 
-1. Remake parts of the araglider body out of MDF so it is less brittle.
+1. Remake parts of the paraglider body out of MDF so it is less brittle.
 2. Introduce steering controls over wifi with an ESP32 based controller.
 3. Tune the parachute and fix stabilization so the paraglider flies straight.
 4. Introduce some landing sequence so landing can be done without crashing.
