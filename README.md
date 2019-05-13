@@ -1,3 +1,12 @@
+## 5/9/19 : Changes for Public Demo Day
+We decided to continue working on our project for public demo day.  The biggest change we decided to make was switching from a WiFi and UDP based controller to a 915 MHz radio controller.
+
+First, we got the 915 Mhz radio working with the Arduino Uno which has more documentation for interfacing with the radio:
+![Radio with Arduino Uno](images/915Arduino.jpg)
+
+Then we got the 915 MHz radio working with the ESP32 that we used on the controller.  We also mounted another ESP32 to the paraglider to read the data from the radio and send it to the BeagleBone over UART.
+![Radio with Arduino Uno](images/915Controller.jpg)
+
 ## 5/1/19 : Changes for Reach Demo Day
 For reach demo day we met most of our goals we set on baseline demo day.  We remade the paraglider body out of MDF, got steering controls over UDP working, and got the paraglider to fly mostly straight.  The weight is still pretty low and we are able to gain altitude fairly well.  We still have not figured out a good way to land.  It seems that wheels would be required to be able to land smoothly.  Before the reach demo we crashed the paraglider again, and remade it out of ABS, which seems like it should hold up.
 
