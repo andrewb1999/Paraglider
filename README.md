@@ -6,7 +6,7 @@ Here is the final video compilation we put together explaining the project and s
 [![](http://img.youtube.com/vi/Fl8BBaURvAc/0.jpg)](http://www.youtube.com/watch?v=Fl8BBaURvAc "Final Video")
 
 ## 5/9/19 : Changes for Public Demo Day
-We decided to continue working on our project for public demo day.  The biggest change we decided to make was switching from a WiFi and UDP based controller to a 915 MHz radio controller.
+We decided to continue working on our project for public demo day.  The biggest change we decided to make was switching from a WiFi and UDP based controller to a 915 MHz radio controller.  We made this change because the WiFi and UDP based controller had very limited range (< 100 ft) causing us to often lose control of the paraglider.
 
 First, we got the 915 Mhz radio working with the Arduino Uno which has more documentation for interfacing with the radio:
 ![Radio with Arduino Uno](images/915Arduino.jpg)
