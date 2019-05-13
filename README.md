@@ -1,5 +1,11 @@
 ## 5/1/19 : Changes for Reach Demo Day
+For reach demo day we met most of our goals we set on baseline demo day.  We remade the paraglider body out of MDF, got steering controls over UDP working, and got the paraglider to fly mostly straight.  The weight is still pretty low and we are able to gain altitude fairly well.  We still have not figured out a good way to land.  It seems that wheels would be required to be able to land smoothly.  Before the reach demo we crashed the paraglider again, and remade it out of ABS, which seems like it should hold up.
 
+Made out of ABS:
+![Image of Reach Demo Version](images/Proto3-3.jpg)
+
+UDP Based Controller:
+![Image of UDP Controller](images/UDPController.jpg)
 
 ## 4/28/19 : Lessons From Baseline Demo Day
 Overall our baseline demo was a success, especially after the few good flights we got in yesterday.  The following are our areas of improvement before the reach demo, ranked in importance:
@@ -13,7 +19,7 @@ Overall our baseline demo was a success, especially after the few good flights w
 ## 4/27/19 : Testing
 We started out the day by flying the paraglider outside of Towne.  Shortly after taking off it make a sharp turn right and hit Towne at full speed, shattering the acrylic frame.  Fortunately, none of the electronics were damaged.
 
-![Image of Prototype 1](images/Proto3-Broken.jpg)
+![Image of Prototype 3 Broken](images/Proto3-Broken.jpg)
 
 We laser cut a new frame out of acrylic which is almost identical to prototype 3.  We then tested the new frame further away from a building.  In this test the motor power was too high (85%), causing the paraglider to tilt back and stall.
 
@@ -35,7 +41,7 @@ Prototype 3 Successful Flight #4:
 
 Photo of the Paraglider Stuck in a Tree:
 
-![Image of Prototype 1](images/Stuck-In-Tree-2.jpg)
+![Stuck in Tree](images/Stuck-In-Tree-2.jpg)
 
 Retrieving the Paraglider:
 
@@ -46,7 +52,7 @@ Today we finished making prototype 3, which is much stiffer and provides drastic
 
 Prototype 3:
 
-![Image of Prototype 1](images/Proto3-1.jpg)
+![Image of Prototype 3](images/Proto3-1.jpg)
 
 Video of Increased Thrust:
 
@@ -63,11 +69,11 @@ We updated our prototype 1 design to accomidate a 6 inch propeller for thrust an
 
 Prototype 2:
 
-![Image of Prototype 1](images/Proto2-3.jpg)
+![Image of Prototype 2](images/Proto2-3.jpg)
 
 Prototype 2 With Parachute:
 
-![Image of Prototype 1](images/Proto2-2.jpg)
+![Image of Prototype 2](images/Proto2-2.jpg)
 
 ## 4/13/19 : Prototype 1
 Over the past few days we designed and lasercut our first prototype paraglider gondola.  We also started working on PID stabilization and tested the paraglider.  The big takeaway from this week is that the paraglider absolutely has to be powered to fly for more than 1-2 seconds.  Researching further, paragliders utilize a ram aerofoil which require constant power to inflate an provide lift.  We will now be adding the propeller as part of our baseline goals rather than as a reach goal.
