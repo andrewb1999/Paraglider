@@ -1,3 +1,10 @@
+## 5/12/19 : Final Video
+Overall, we are extremely happy with how our project turned out.  There are still many things to be improved by better integrating the hardware, decreasing the weight, and adding wheels for takeoff and landing, but we accomplished the main goals we set out for with this project.
+
+Here is the final video compilation we put together explaining the project and showing many more flights:
+
+[![](http://img.youtube.com/vi/Fl8BBaURvAc/0.jpg)](http://www.youtube.com/watch?v=Fl8BBaURvAc "Final Video")
+
 ## 5/9/19 : Changes for Public Demo Day
 We decided to continue working on our project for public demo day.  The biggest change we decided to make was switching from a WiFi and UDP based controller to a 915 MHz radio controller.
 
