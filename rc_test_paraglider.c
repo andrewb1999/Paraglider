@@ -33,6 +33,7 @@
 #define kIYaw 0.000000000000000000000002
 //#define kDRoll 00 //2300
 #define PARALLEL -0.05
+//#define MANUAL 0
 
 double kDYaw = 0;
 
@@ -51,7 +52,8 @@ typedef enum arm_state_t{
 typedef struct setpoint_t{
 	arm_state_t arm_state;	///< see arm_state_t declaration
 	double yaw;
-	double throttle;		
+	double throttle;
+	double manual_angle;		
 }setpoint_t;
 
 /**
@@ -593,7 +595,15 @@ void* __setpoint_manager(__attribute__ ((unused)) void* ptr) {
 			rc_set_state(EXITING);
 			break;
 		case JOYSTICK:
-			setpoint.yaw -= (steering_stick - 0.43)*0.003;
+			#ifdef MANUAL
+				if (steering_stick > 0.43)
+					setpoint.manual_angle = (steering_stick - 0.43)*0.62;
+				else
+					setpoint.manual_angle = (steering_stick - 0.43)*0.81;
+			#else
+				setpoint.yaw -= (steering_stick - 0.43)*0.003;
+			#endif
+
 			setpoint.throttle = (throttle_stick - 0.43)*0.52 + 0.8;
 
 			if (setpoint.throttle > 1) {
@@ -695,7 +705,11 @@ static void __balance_controller(void)
 		// }
 		// printf("kD: %lf\n", kDYaw);
 
-		cstate.servo_pos = error_yaw*0.5;// - PARALLEL - ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
+		#ifdef MANUAL
+			cstate.servo_pos = setpoint.manual_angle;
+		#else
+			cstate.servo_pos = error_yaw*0.5;// - PARALLEL - ANGLE_OFFSET;//p*kPYaw + i*kIYaw; // + d*kDYaw;
+		#endif
 		
 
 		if (cstate.servo_pos > 0.35) {
